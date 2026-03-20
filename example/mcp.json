@@ -1,0 +1,12 @@
+{
+	"servers": {
+		"dom-analyzer-mcp": {
+			"type": "stdio",
+			"command": "node",
+			"args": [
+				"C:/path/folder/dist/server.js"
+			]
+		}
+	},
+	"inputs": []
+}
