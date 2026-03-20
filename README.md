@@ -239,9 +239,9 @@ Output:
 Eseguire da terminale:
 
 ```bash
-cd angular-mcp-server
+cd dom-analyzer-mcp
 npm install
-npm run build (se presente)
+npm run build
 npm start
 ```
 
