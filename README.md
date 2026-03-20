@@ -240,7 +240,7 @@ Eseguire da terminale:
 
 ```bash
 cd dom-analyzer-mcp
-npm install
+PUPPETEER_SKIP_DOWNLOAD=true npm i
 npm run build
 npm start
 ```
