@@ -12,15 +12,17 @@ const server = new McpServer({
 });
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const configPath = path.resolve(__dirname, "config.json");
+const configPath = path.resolve(__dirname, "..", "config.json");
 
 interface ServerConfig {
   targetUrl: string;
   headless: boolean;
+  executablePath?: string;
+  initTimeout?: number;
 }
 
 function loadConfig(): ServerConfig {
-  const defaultConfig: ServerConfig = { targetUrl: "http://localhost:4200", headless: true };
+  const defaultConfig: ServerConfig = { targetUrl: "http://localhost:4200", headless: true, initTimeout: 30000 };
   try {
     const raw = fs.readFileSync(configPath, "utf8");
     const parsed = JSON.parse(raw) as Partial<ServerConfig>;
@@ -220,10 +222,11 @@ server.tool(
     url: z.string().describe("URL o path da navigare (es: http://localhost:4200/dashboard o /dashboard)"),
   },
   async ({ url }) => {
-    const fullUrl = url.startsWith("http") ? url : `http://localhost:4200${url}`;
-    await page.goto(fullUrl, { waitUntil: "networkidle2" });
+    const fullUrl = url.startsWith("http") ? url : `${config.targetUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+    await page.goto(fullUrl, { waitUntil: "domcontentloaded" });
+    currentUrl = page.url(); // Aggiorna URL corrente
     networkRequests.length = 0; // Reset network log dopo navigazione
-    return { content: [{ type: "text", text: `Navigato a ${fullUrl}` }] };
+    return { content: [{ type: "text", text: `Navigato a ${currentUrl}` }] };
   }
 );
 
@@ -339,34 +342,31 @@ server.tool(
 );
 
 server.tool(
-  "get_performance_metrics",
-  "Restituisce metriche di performance pagina",
+  "get_current_url",
+  "Restituisce l'URL corrente della pagina Dom Analyzer",
   {},
   async () => {
-    const metrics = await page.metrics();
-    const perfTiming = await page.evaluate(() => JSON.stringify(window.performance.toJSON()));
-    return {
-      content: [
-        { type: 'text', text: JSON.stringify({ metrics, perfTiming: JSON.parse(perfTiming) }, null, 2) },
-      ],
-    };
+    return { content: [{ type: "text", text: currentUrl || "URL non disponibile" }] };
   }
 );
 
 // ─── Avvio ───────────────────────────────────────────────────────────────────
 async function main() {
-  await initBrowser();
-
-  // Registra errori console
-  page.on("console", (msg) => {
-    if (msg.type() === "error" || msg.type() === "warn") {
-      consoleErrors.push(`[${msg.type().toUpperCase()}] ${msg.text()}`);
-    }
-  });
-
+  // Inizializza browser in background senza bloccare il server
+  initBrowser().catch(err => console.error(`Errore init browser: ${err.message}`));
+ 
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("Dom Analyzer MCP Server avviato ✅");
+ 
+  // Registra errori console dopo connessione
+  if (page) {
+    page.on("console", (msg) => {
+      if (msg.type() === "error" || msg.type() === "warn") {
+        consoleErrors.push(`[${msg.type().toUpperCase()}] ${msg.text()}`);
+      }
+    });
+  }
 }
 
 main().catch(console.error);
